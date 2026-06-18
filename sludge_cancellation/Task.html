@@ -4,11 +4,24 @@
 
 {{ block content }}
 <style>
+    /* Стили основной задачи */
     .matrix-table { margin: 20px auto; border-collapse: collapse; font-size: 20px; }
     .matrix-table td { width: 30px; height: 30px; text-align: center; border: 1px solid #ccc; }
     .timer-box { font-size: 18px; font-weight: bold; color: #d9534f; margin-bottom: 20px; text-align: center; }
     .info-panel { background: #f9f9f9; padding: 15px; border-radius: 5px; margin-bottom: 20px; text-align: center;}
     .warning-box { background: #fff3cd; color: #856404; padding: 15px; border-radius: 5px; margin-bottom: 20px; border: 1px solid #ffeeba;}
+    
+    /* Стили модального окна (Личный кабинет) */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; }
+    .modal-content { background: white; padding: 30px; border-radius: 8px; width: 500px; max-width: 90%; position: relative; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+    .modal-step { display: none; }
+    .modal-step.active { display: block; }
+    
+    /* Специфичные стили для сладжа */
+    .sludge-text { font-size: 14px; color: #555; line-height: 1.5; margin-bottom: 20px; text-align: justify; }
+    .btn-hidden { background: none; border: none; color: #999; font-size: 12px; cursor: pointer; text-decoration: underline; margin-top: 20px; }
+    .btn-hidden:hover { color: #666; }
+    .disabled-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.5); z-index: 10; display: none; }
 </style>
 
 {{ if show_warning }}
@@ -43,31 +56,249 @@
 <input type="hidden" name="cabinet_time_round" id="cabinet_time_round" value="0">
 <input type="hidden" name="clicks_count" id="clicks_count" value="0">
 <input type="hidden" name="validation_errors" id="validation_errors" value="0">
-<input type="hidden" id="cabinet_opened" name="cabinet_opened" value="False">
+<input type="hidden" name="cabinet_opened" id="cabinet_opened" value="False">
+<input type="hidden" name="cancelled_this_round" id="cancelled_this_round" value="False">
 
 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 30px;">
-    <button class="btn btn-primary">Отправить ответ</button>
-    <button type="button" class="btn btn-outline-secondary" id="open-cabinet-btn">Личный кабинет</button>
+    <button class="btn btn-primary" id="submit-matrix-btn">Отправить ответ</button>
+    {{ if player.participant.subscription_active }}
+        <button type="button" class="btn btn-outline-secondary" id="open-cabinet-btn">Личный кабинет</button>
+    {{ endif }}
+</div>
+
+<div class="modal-overlay" id="cabinet-modal">
+    <div class="modal-content" id="modal-inner-content">
+        <div class="disabled-overlay" id="modal-blocker"></div>
+        <div style="text-align: right; margin-bottom: 10px;">
+            <span style="color: #d9534f; font-weight: bold;">Текущий заработок: <span id="modal-reward-display">100</span> ЭВЕ</span>
+        </div>
+
+        {{ if player.is_sludge }}
+            <div class="modal-step active" id="step-1">
+                <h4>Премиум-ассистент проверки</h4>
+                <div class="sludge-text">
+                    Ваша подписка на Премиум-ассистента активна. Данный сервис является эксклюзивным предложением, разработанным для обеспечения максимальной безопасности ваших результатов. Мы используем передовые алгоритмы серверной валидации, чтобы гарантировать, что ни один балл не будет потерян из-за непредвиденных технических сбоев или проблем с интернет-соединением. Отказ от данной услуги перекладывает все риски потери данных полностью на пользователя. Мы настоятельно рекомендуем сохранить защиту.
+                </div>
+                <div style="text-align: center;">
+                    <button type="button" class="btn btn-primary btn-close-modal" style="width: 100%; margin-bottom: 15px;">Сохранить защиту и вернуться к задаче</button>
+                    <button type="button" class="btn-hidden" onclick="nextStep(2)">Управление подпиской</button>
+                </div>
+            </div>
+
+            <div class="modal-step" id="step-2">
+                <h4>Укажите причину ухода</h4>
+                <p>Пожалуйста, выберите, почему вы хотите отказаться от защиты:</p>
+                <div style="margin-bottom: 15px; text-align: left;">
+                    <div><input type="radio" name="reason" id="r1"> <label for="r1">Слишком дорого</label></div>
+                    <div><input type="radio" name="reason" id="r2"> <label for="r2">Не нуждаюсь в защите</label></div>
+                    <div><input type="radio" name="reason" id="r3" onchange="toggleReasonText()"> <label for="r3">Другое (укажите причину)</label></div>
+                    <input type="text" id="other-reason" class="form-control" style="display:none; margin-top: 5px;" placeholder="Минимум 5 символов">
+                </div>
+                <div id="step-2-error" style="color: red; font-size: 12px; display: none; margin-bottom: 10px;">Необходимо выбрать причину.</div>
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="validateStep2()">Продолжить отключение</button>
+                <button type="button" class="btn btn-primary btn-sm btn-close-modal" style="float: right;">Вернуться к задаче</button>
+            </div>
+
+            <div class="modal-step" id="step-3">
+                <h4>Короткий опрос</h4>
+                <p>Для улучшения качества обслуживания, укажите, пожалуйста, как долго (в раундах) Вы пользовались Премиум-ассистентом:</p>
+                <select id="survey-select" class="form-control" style="margin-bottom: 15px;">
+                    <option value="">-- Выберите --</option>
+                    <option value="1">1-2 раунда</option>
+                    <option value="2">3-5 раундов</option>
+                    <option value="3">Более 5 раундов</option>
+                    <option value="4">Затрудняюсь ответить</option>
+                </select>
+                <div id="step-3-error" style="color: red; font-size: 12px; display: none; margin-bottom: 10px;">Это обязательное поле.</div>
+                <button type="button" class="btn btn-primary btn-close-modal" style="width: 100%; margin-bottom: 15px;">Сохранить защиту и вернуться</button>
+                <button type="button" class="btn btn-secondary btn-sm" style="background: #e0e0e0; border: none; color: #555; width: 100%;" onclick="validateStep3()">Продолжить отключение</button>
+            </div>
+
+            <div class="modal-step" id="step-4">
+                <h4>Финальное подтверждение</h4>
+                <p>Для завершения отмены введите кодовое слово <strong>ПоДТверждаЮ</strong> в поле ниже (учитывайте регистр):</p>
+                <input type="text" id="captcha-input" class="form-control" style="margin-bottom: 10px;" autocomplete="off">
+                <div id="captcha-msg" style="color: red; font-size: 12px; min-height: 15px; margin-bottom: 10px;"></div>
+                <button type="button" class="btn btn-danger" onclick="checkCaptcha()">Подтвердить отмену</button>
+                <button type="button" class="btn btn-outline-primary btn-close-modal" style="float: right;">Вернуться к задаче</button>
+            </div>
+
+        {{ else }}
+            <div class="modal-step active" id="step-1">
+                <h4>Личный кабинет</h4>
+                <p>Статус услуги «Премиум-ассистент»: <strong style="color: green;">Активна</strong></p>
+                <br>
+                <button type="button" class="btn btn-danger" onclick="nextStep(2)">Отменить подписку</button>
+                <button type="button" class="btn btn-secondary btn-close-modal" style="float: right;">Вернуться к задаче</button>
+            </div>
+
+            <div class="modal-step" id="step-2">
+                <h4>Подтверждение</h4>
+                <p>Вы уверены, что хотите отключить услугу «Премиум-ассистент»?</p>
+                <br>
+                <button type="button" class="btn btn-danger" onclick="cancelSubscription()">Да, отключить</button>
+                <button type="button" class="btn btn-secondary btn-close-modal" style="float: right;">Нет, вернуться</button>
+            </div>
+        {{ endif }}
+
+        <div class="modal-step" id="step-success">
+            <h4 style="color: green;">Успешно</h4>
+            <p>Подписка успешно отменена. Списания прекращены.</p>
+            <br>
+            <button type="button" class="btn btn-primary btn-close-modal">Вернуться к задаче</button>
+        </div>
+
+    </div>
 </div>
 
 <script>
+    // --- Логика таймеров и переменных ---
     let reward = 100;
     let penalty = 0;
-    const rewardDisplay = document.getElementById('reward-display');
-    const penaltyInput = document.getElementById('round_time_penalty');
+    let cabinetTime = 0;
+    let cabinetInterval;
+    let clickCounter = 0;
+    let errorsCounter = 0;
+    let isCabinetOpen = false;
 
-    // минус 1 ЭВЕ каждую секунду 
+    const rewardDisplay = document.getElementById('reward-display');
+    const modalRewardDisplay = document.getElementById('modal-reward-display');
+    const penaltyInput = document.getElementById('round_time_penalty');
+    const cabinetTimeInput = document.getElementById('cabinet_time_round');
+    const clicksInput = document.getElementById('clicks_count');
+    const errorsInput = document.getElementById('validation_errors');
+    
+    const modal = document.getElementById('cabinet-modal');
+    const blocker = document.getElementById('modal-blocker');
+
+    // Глобальный таймер штрафа (работает всегда)
     setInterval(function() {
         penalty++;
         let currentReward = reward - penalty;
         rewardDisplay.textContent = currentReward;
+        modalRewardDisplay.textContent = currentReward;
         penaltyInput.value = penalty;
     }, 1000);
 
-    // Заглушка кнопки личного кабинета (окно реализуем на 4-5 этапе)
-    document.getElementById('open-cabinet-btn').addEventListener('click', function() {
-        document.getElementById('cabinet_opened').value = "True";
-        alert('Здесь будет открываться модальное окно Личного кабинета поверх матрицы.');
+    // Таймер нахождения в личном кабинете
+    function startCabinetTimer() {
+        cabinetInterval = setInterval(function() {
+            cabinetTime++;
+            cabinetTimeInput.value = cabinetTime;
+        }, 1000);
+    }
+    function stopCabinetTimer() {
+        clearInterval(cabinetInterval);
+    }
+
+    // Подсчет хаотичных кликов внутри модального окна
+    document.getElementById('modal-inner-content').addEventListener('click', function() {
+        if(isCabinetOpen) {
+            clickCounter++;
+            clicksInput.value = clickCounter;
+        }
     });
+
+    // --- Управление модальным окном ---
+    const openBtn = document.getElementById('open-cabinet-btn');
+    if (openBtn) {
+        openBtn.addEventListener('click', function() {
+            document.getElementById('cabinet_opened').value = "True";
+            modal.style.display = 'flex';
+            isCabinetOpen = true;
+            startCabinetTimer();
+            // Сброс на первый шаг при каждом открытии
+            if (document.getElementById('cancelled_this_round').value !== "True") {
+                goToStep(1); 
+            }
+        });
+    }
+
+    // Закрытие модального окна по кнопкам "Вернуться к задаче"
+    document.querySelectorAll('.btn-close-modal').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation(); // Чтобы клик по кнопке закрытия не считался "хаотичным"
+            modal.style.display = 'none';
+            isCabinetOpen = false;
+            stopCabinetTimer();
+        });
+    });
+
+    // Навигация по шагам
+    function goToStep(stepNum) {
+        document.querySelectorAll('.modal-step').forEach(step => step.classList.remove('active'));
+        const targetStep = document.getElementById('step-' + stepNum);
+        if(targetStep) targetStep.classList.add('active');
+    }
+    function nextStep(stepNum) {
+        goToStep(stepNum);
+    }
+
+    // Успешная отмена (общая для всех)
+    function cancelSubscription() {
+        document.getElementById('cancelled_this_round').value = "True";
+        goToStep('success');
+    }
+
+    // --- Специфичная логика для Сладжа ---
+    function toggleReasonText() {
+        const textInput = document.getElementById('other-reason');
+        textInput.style.display = document.getElementById('r3').checked ? 'block' : 'none';
+    }
+
+    function validateStep2() {
+        const r1 = document.getElementById('r1').checked;
+        const r2 = document.getElementById('r2').checked;
+        const r3 = document.getElementById('r3').checked;
+        const text = document.getElementById('other-reason').value;
+        const err = document.getElementById('step-2-error');
+        
+        if (!r1 && !r2 && !r3) {
+            err.style.display = 'block';
+            return;
+        }
+        if (r3 && text.length < 5) {
+            err.innerText = "Укажите причину (минимум 5 символов).";
+            err.style.display = 'block';
+            return;
+        }
+        err.style.display = 'none';
+        nextStep(3);
+    }
+
+    function validateStep3() {
+        const val = document.getElementById('survey-select').value;
+        const err = document.getElementById('step-3-error');
+        if (val === "") {
+            err.style.display = 'block';
+            return;
+        }
+        err.style.display = 'none';
+        nextStep(4);
+    }
+
+    function checkCaptcha() {
+        const inputField = document.getElementById('captcha-input');
+        const msg = document.getElementById('captcha-msg');
+        
+        // Строгая проверка с учетом регистра и невидимых символов
+        if (inputField.value === "ПоДТверждаЮ") {
+            cancelSubscription();
+        } else {
+            // Ошибка валидации
+            errorsCounter++;
+            errorsInput.value = errorsCounter;
+            
+            inputField.value = "";
+            msg.innerText = "Неверный формат ввода. Попробуйте снова.";
+            
+            // Искусственная задержка 5 секунд (блокировка интерфейса)
+            blocker.style.display = 'block';
+            setTimeout(function() {
+                blocker.style.display = 'none';
+                msg.innerText = "";
+            }, 5000);
+        }
+    }
 </script>
 {{ endblock }}

@@ -74,6 +74,8 @@ class Player(BasePlayer):
         label='Как Вы думаете, что проверялось в ходе этого исследования?',
         blank=True
     )
+    # Флаг отмены подписки в текущем раунде
+    cancelled_this_round = models.BooleanField(initial=False)
 
 
     # PAGES
@@ -85,12 +87,13 @@ class Task(Page):
         'cabinet_time_round', 
         'clicks_count', 
         'validation_errors', 
-        'cabinet_opened'
+        'cabinet_opened',
+        'cancelled_this_round' # Добавили новое поле
     ]
 
     @staticmethod
     def vars_for_template(player: Player):
-        # Генерируем уникальную матрицу 10х10 
+        # Генерируем уникальную матрицу 10х10
         matrix = []
         zeros_count = 0
         for _ in range(10):
@@ -105,7 +108,7 @@ class Task(Page):
         # Сохраняем правильный ответ в базу
         player.matrix_correct_answer = zeros_count
         
-        # Перед началом 3-го раунда участники получают системное уведомление
+        # Уведомление показывается только перед 3-м раундом
         show_warning = (player.round_number == 3)
         
         return {
@@ -115,17 +118,23 @@ class Task(Page):
 
     @staticmethod
     def before_next_page(player: Player, timeout_happened):
-        # Проверка правильности подсчета нулей
+        # 1. Обновляем глобальный статус подписки, если участник её отменил
+        if player.cancelled_this_round:
+            player.participant.subscription_active = False
+            
+        # Фиксируем статус подписки для логов этого раунда
+        player.subscription_active = player.participant.subscription_active
+
+        # 2. Проверка правильности подсчета нулей
         player.is_correct = (player.player_answer == player.matrix_correct_answer)
         base_reward = Constants.base_matrix_reward if player.is_correct else cu(0)
         
-        # Списание за подписку (с 3 раунда)
+        # 3. Списание за подписку (начиная с 3 раунда, если активна)
         sub_cost = cu(0)
         if player.round_number >= 3 and player.subscription_active:
             sub_cost = Constants.subscription_cost
         
-        # Расчет итогового заработка за раунд в ЭВЕ с учетом штрафа за время
-        # round_time_penalty передается со страницы HTML через скрытое поле
+        # 4. Расчет итогового заработка
         final_payoff = base_reward - cu(player.round_time_penalty) - sub_cost
         
         player.round_payoff_eve = int(final_payoff)
