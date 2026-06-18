@@ -22,6 +22,7 @@
     .btn-hidden { background: none; border: none; color: #999; font-size: 12px; cursor: pointer; text-decoration: underline; margin-top: 20px; }
     .btn-hidden:hover { color: #666; }
     .disabled-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.5); z-index: 10; display: none; }
+    .btn-close-modal { position: relative; z-index: 20; }
 </style>
 
 {{ if show_warning }}
@@ -58,10 +59,11 @@
 <input type="hidden" name="validation_errors" id="validation_errors" value="0">
 <input type="hidden" name="cabinet_opened" id="cabinet_opened" value="False">
 <input type="hidden" name="cancelled_this_round" id="cancelled_this_round" value="False">
+<input type="hidden" name="time_to_first_click_ms" id="time_to_first_click_ms" value="0">
 
 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 30px;">
     <button class="btn btn-primary" id="submit-matrix-btn">Отправить ответ</button>
-    {{ if player.participant.subscription_active }}
+    {{ if player.subscription_active }}
         <button type="button" class="btn btn-outline-secondary" id="open-cabinet-btn">Личный кабинет</button>
     {{ endif }}
 </div>
@@ -116,7 +118,7 @@
 
             <div class="modal-step" id="step-4">
                 <h4>Финальное подтверждение</h4>
-                <p>Для завершения отмены введите кодовое слово <strong>ПоДТверждаЮ</strong> в поле ниже (учитывайте регистр):</p>
+                <p>Для завершения отмены введите кодовое слово <strong style="user-select: none; -webkit-user-select: none;">ПоДТверждаЮ </strong> в поле ниже (учитывайте регистр):</p>
                 <input type="text" id="captcha-input" class="form-control" style="margin-bottom: 10px;" autocomplete="off">
                 <div id="captcha-msg" style="color: red; font-size: 12px; min-height: 15px; margin-bottom: 10px;"></div>
                 <button type="button" class="btn btn-danger" onclick="checkCaptcha()">Подтвердить отмену</button>
@@ -152,7 +154,7 @@
 </div>
 
 <script>
-    // --- Логика таймеров и переменных ---
+    // Логика таймеров и переменных
     let reward = 100;
     let penalty = 0;
     let cabinetTime = 0;
@@ -160,6 +162,11 @@
     let clickCounter = 0;
     let errorsCounter = 0;
     let isCabinetOpen = false;
+
+    // Новые переменные для миллисекунд
+    let modalOpenTime = 0;
+    let firstClickRecorded = false;
+    let exactCabinetTimeMs = 0;
 
     const rewardDisplay = document.getElementById('reward-display');
     const modalRewardDisplay = document.getElementById('modal-reward-display');
@@ -172,11 +179,15 @@
     const blocker = document.getElementById('modal-blocker');
 
     // Глобальный таймер штрафа (работает всегда)
+    // Глобальный таймер штрафа (работает всегда)
     setInterval(function() {
         penalty++;
-        let currentReward = reward - penalty;
+        // Визуальное вознаграждение не опускается ниже 0
+        let currentReward = Math.max(0, reward - penalty); 
         rewardDisplay.textContent = currentReward;
         modalRewardDisplay.textContent = currentReward;
+        
+        // сам штраф продолжаем честно записывать в базу
         penaltyInput.value = penalty;
     }, 1000);
 
@@ -191,33 +202,43 @@
         clearInterval(cabinetInterval);
     }
 
-    // Подсчет хаотичных кликов внутри модального окна
-    document.getElementById('modal-inner-content').addEventListener('click', function() {
+    // Подсчет хаотичных кликов и времени до первого клика
+    document.getElementById('modal-inner-content').addEventListener('click', function(e) {
         if(isCabinetOpen) {
+            // Если это первый клик после открытия окна
+            if(!firstClickRecorded) {
+                let currentClickTime = performance.now();
+                document.getElementById('time_to_first_click_ms').value = Math.round(currentClickTime - modalOpenTime);
+                firstClickRecorded = true;
+            }
             clickCounter++;
             clicksInput.value = clickCounter;
         }
     });
 
-    // --- Управление модальным окном ---
+    // Управление модальным окном
     const openBtn = document.getElementById('open-cabinet-btn');
     if (openBtn) {
         openBtn.addEventListener('click', function() {
             document.getElementById('cabinet_opened').value = "True";
             modal.style.display = 'flex';
             isCabinetOpen = true;
+            
+            // Фиксируем время открытия в миллисекундах
+            modalOpenTime = performance.now();
+            firstClickRecorded = false;
+            
             startCabinetTimer();
-            // Сброс на первый шаг при каждом открытии
             if (document.getElementById('cancelled_this_round').value !== "True") {
                 goToStep(1); 
             }
         });
     }
 
-    // Закрытие модального окна по кнопкам "Вернуться к задаче"
+    // Закрытие модального окна
     document.querySelectorAll('.btn-close-modal').forEach(btn => {
         btn.addEventListener('click', function(e) {
-            e.stopPropagation(); // Чтобы клик по кнопке закрытия не считался "хаотичным"
+            e.stopPropagation();
             modal.style.display = 'none';
             isCabinetOpen = false;
             stopCabinetTimer();

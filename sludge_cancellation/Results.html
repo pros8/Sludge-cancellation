@@ -11,6 +11,11 @@
             <li>Суммарный заработок в симуляции: <strong>{{ total_eve }} ЭВЕ</strong></li>
             <li>Бонус в рублях (по курсу 10 ЭВЕ = 1 рубль): <strong>{{ bonus_rub }} руб.</strong></li>
             <li>Гарантированная базовая выплата: <strong>300 руб.</strong></li>
+            {{ if cancelled_subscription }}
+                <li style="color: green;">Статус подписки: <strong>Отменена (в раунде {{ cancel_round }})</strong></li>
+            {{ else }}
+                <li style="color: red;">Статус подписки: <strong>Осталась активной</strong></li>
+            {{ endif }}
         </ul>
         
         <hr>

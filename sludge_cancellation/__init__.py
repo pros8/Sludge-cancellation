@@ -18,13 +18,13 @@ class Subsession(BaseSubsession):
 
 def creating_session(subsession: Subsession):
     if subsession.round_number == 1:
-        # Создаем цикл для рандомизации 1:1 (True = сладж, False = контроль)
         treatments = itertools.cycle([True, False])
         for player in subsession.get_players():
-            # Записываем группу в participant, чтобы она сохранялась между раундами
             player.participant.is_sludge = next(treatments)
-            # глобальный статус подписки (по умолчанию активна)
             player.participant.subscription_active = True
+            # Глобальные переменные отмены
+            player.participant.cancelled_subscription = False
+            player.participant.cancel_round = 0
             
     # значение из participant в player для экспорта данных логов
     for player in subsession.get_players():
@@ -49,30 +49,29 @@ class Player(BasePlayer):
     # Метрики личного кабинета и сладжа
     cabinet_time_round = models.IntegerField(initial=0) # Совокупное время в кабинете (сек)
     clicks_count = models.IntegerField(initial=0) # Количество кликов мышью
+    time_to_first_click_ms = models.IntegerField(initial=0) # Время до первого действия в мс
     validation_errors = models.IntegerField(initial=0) # Ошибки ввода кодового слова
     cabinet_opened = models.BooleanField(initial=False) # Открывал ли кабинет в этом раунде
     
     # Финальная анкета
     gender = models.StringField(
         choices=[['Мужской', 'Мужской'], ['Женский', 'Женский']],
-        label='Укажите ваш пол:',
-        blank=True
+        label='Укажите ваш пол:'
     )
     admin_lit_1 = models.IntegerField(
-        choices=[1, 2, 3, 4, 5], widget=widgets.RadioSelect, blank=True,
+        choices=[1, 2, 3, 4, 5], widget=widgets.RadioSelect,
         label='1. Я обычно легко понимаю правила электронных подписок и контрактов.'
     )
     admin_lit_2 = models.IntegerField(
-        choices=[1, 2, 3, 4, 5], widget=widgets.RadioSelect, blank=True,
+        choices=[1, 2, 3, 4, 5], widget=widgets.RadioSelect,
         label='2. Я всегда внимательно читаю условия автоматического продления перед тем, как привязать банковскую карту.'
     )
     admin_lit_3 = models.IntegerField(
-        choices=[1, 2, 3, 4, 5], widget=widgets.RadioSelect, blank=True,
+        choices=[1, 2, 3, 4, 5], widget=widgets.RadioSelect,
         label='3. При необходимости я уверенно ориентируюсь в настройках цифровых сервисов, даже если они запутаны.'
     )
     purpose_guess = models.LongStringField(
-        label='Как Вы думаете, что проверялось в ходе этого исследования?',
-        blank=True
+        label='Как Вы думаете, что проверялось в ходе этого исследования?'
     )
     # Флаг отмены подписки в текущем раунде
     cancelled_this_round = models.BooleanField(initial=False)
@@ -94,7 +93,8 @@ class Task(Page):
         'clicks_count', 
         'validation_errors', 
         'cabinet_opened',
-        'cancelled_this_round' # Добавили новое поле
+        'cancelled_this_round',
+        'time_to_first_click_ms'
     ]
 
     @staticmethod
@@ -127,6 +127,8 @@ class Task(Page):
         # 1. Обновляем глобальный статус подписки, если участник её отменил
         if player.cancelled_this_round:
             player.participant.subscription_active = False
+            player.participant.cancelled_subscription = True
+            player.participant.cancel_round = player.round_number
             
         # Фиксируем статус подписки для логов этого раунда
         player.subscription_active = player.participant.subscription_active
@@ -140,8 +142,9 @@ class Task(Page):
         if player.round_number >= 3 and player.subscription_active:
             sub_cost = Constants.subscription_cost
         
-        # 4. Расчет итогового заработка
-        final_payoff = base_reward - cu(player.round_time_penalty) - sub_cost
+        # 4. Расчет итогового заработка (вознаграждение за матрицу не может быть < 0)
+        task_payoff = max(cu(0), base_reward - cu(player.round_time_penalty))
+        final_payoff = task_payoff - sub_cost
         
         player.round_payoff_eve = int(final_payoff)
         player.payoff = final_payoff
@@ -179,6 +182,8 @@ class Results(Page):
             'total_eve': total_eve,
             'bonus_rub': bonus_rub,
             'total_rub': total_rub,
+            'cancelled_subscription': player.participant.cancelled_subscription,
+            'cancel_round': player.participant.cancel_round,
         }
 
 page_sequence = [Instructions, Task, Survey, Results]
