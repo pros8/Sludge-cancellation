@@ -1,10 +1,22 @@
 {{ block title }}
-    Page title
+    Результаты эксперимента
 {{ endblock }}
 
 {{ block content }}
-
-    {{ next_button }}
+<div class="card">
+    <div class="card-body">
+        <p class="lead">Эксперимент успешно завершен. Большое спасибо за ваше участие!</p>
+        
+        <ul style="font-size: 18px; line-height: 1.8; margin-top: 20px;">
+            <li>Суммарный заработок в симуляции: <strong>{{ total_eve }} ЭВЕ</strong></li>
+            <li>Бонус в рублях (по курсу 10 ЭВЕ = 1 рубль): <strong>{{ bonus_rub }} руб.</strong></li>
+            <li>Гарантированная базовая выплата: <strong>300 руб.</strong></li>
+        </ul>
+        
+        <hr>
+        <h3 style="color: green; text-align: center; margin-top: 20px;">
+            Ваша итоговая выплата: {{ total_rub }} руб.
+        </h3>
+    </div>
+</div>
 {{ endblock }}
-
-

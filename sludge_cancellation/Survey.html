@@ -1,0 +1,17 @@
+{{ block title }}
+    Итоговое анкетирование
+{{ endblock }}
+
+{{ block content }}
+<div class="card">
+    <div class="card-body">
+        <p>Пожалуйста, ответьте на несколько вопросов перед завершением эксперимента. Ваши ответы помогут нам в анализе данных.</p>
+        
+        <div style="margin-top: 20px;">
+            {{ formfields }}
+        </div>
+
+        <button class="btn btn-primary" style="margin-top: 20px;">Завершить исследование</button>
+    </div>
+</div>
+{{ endblock }}

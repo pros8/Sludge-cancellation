@@ -140,4 +140,39 @@ class Task(Page):
         player.round_payoff_eve = int(final_payoff)
         player.payoff = final_payoff
 
-page_sequence = [Task]
+class Survey(Page):
+    form_model = 'player'
+    form_fields = ['gender', 'admin_lit_1', 'admin_lit_2', 'admin_lit_3', 'purpose_guess']
+
+    @staticmethod
+    def is_displayed(player: Player):
+        # Анкета показывается только в последнем (10-м) раунде
+        return player.round_number == Constants.num_rounds
+
+class Results(Page):
+    @staticmethod
+    def is_displayed(player: Player):
+        # Результаты показываются только в последнем раунде
+        return player.round_number == Constants.num_rounds
+
+    @staticmethod
+    def vars_for_template(player: Player):
+        # Собираем заработок за все 10 раундов
+        total_eve = sum([p.round_payoff_eve for p in player.in_all_rounds()])
+        
+        # Гарантируем, что заработок в ЭВЕ не отрицательный для конвертации
+        bonus_eve = max(0, total_eve)
+        
+        # Конвертируем в рубли (10 ЭВЕ = 1 рубль)
+        bonus_rub = bonus_eve / 10
+        
+        # Итоговая выплата с учетом гарантированных 300 рублей
+        total_rub = 300 + bonus_rub
+        
+        return {
+            'total_eve': total_eve,
+            'bonus_rub': bonus_rub,
+            'total_rub': total_rub,
+        }
+
+page_sequence = [Task, Survey, Results]
