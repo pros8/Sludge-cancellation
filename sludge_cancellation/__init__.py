@@ -79,6 +79,12 @@ class Player(BasePlayer):
 
 
     # PAGES
+class Instructions(Page):
+    @staticmethod
+    def is_displayed(player: Player):
+        # Инструкция показывается только один раз — перед первым раундом
+        return player.round_number == 1
+
 class Task(Page):
     form_model = 'player'
     form_fields = [
@@ -175,4 +181,4 @@ class Results(Page):
             'total_rub': total_rub,
         }
 
-page_sequence = [Task, Survey, Results]
+page_sequence = [Instructions, Task, Survey, Results]
