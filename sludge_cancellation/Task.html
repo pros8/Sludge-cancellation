@@ -1,0 +1,73 @@
+{{ block title }}
+    Раунд {{ player.round_number }} из {{ Constants.num_rounds }}
+{{ endblock }}
+
+{{ block content }}
+<style>
+    .matrix-table { margin: 20px auto; border-collapse: collapse; font-size: 20px; }
+    .matrix-table td { width: 30px; height: 30px; text-align: center; border: 1px solid #ccc; }
+    .timer-box { font-size: 18px; font-weight: bold; color: #d9534f; margin-bottom: 20px; text-align: center; }
+    .info-panel { background: #f9f9f9; padding: 15px; border-radius: 5px; margin-bottom: 20px; text-align: center;}
+    .warning-box { background: #fff3cd; color: #856404; padding: 15px; border-radius: 5px; margin-bottom: 20px; border: 1px solid #ffeeba;}
+</style>
+
+{{ if show_warning }}
+    <div class="warning-box">
+        <strong>Внимание!</strong> Тестовый период завершен. С этого раунда за услугу «Премиум-ассистент» автоматически списывается {{ Constants.subscription_cost }} ЭВЕ.
+    </div>
+{{ endif }}
+
+<div class="timer-box">
+    Потенциальное вознаграждение за раунд: <span id="reward-display">100</span> ЭВЕ
+</div>
+
+<div class="info-panel">
+    <p>Подсчитайте точное количество <strong>нулей (0)</strong> в матрице:</p>
+    <table class="matrix-table">
+        {{ for row in matrix }}
+            <tr>
+                {{ for val in row }}
+                    <td>{{ val }}</td>
+                {{ endfor }}
+            </tr>
+        {{ endfor }}
+    </table>
+</div>
+
+<div class="mb-3">
+    <label>Ваш ответ:</label>
+    <input type="number" name="player_answer" required class="form-control" style="width: 200px;">
+</div>
+
+<input type="hidden" name="round_time_penalty" id="round_time_penalty" value="0">
+<input type="hidden" name="cabinet_time_round" id="cabinet_time_round" value="0">
+<input type="hidden" name="clicks_count" id="clicks_count" value="0">
+<input type="hidden" name="validation_errors" id="validation_errors" value="0">
+<input type="hidden" id="cabinet_opened" name="cabinet_opened" value="False">
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 30px;">
+    <button class="btn btn-primary">Отправить ответ</button>
+    <button type="button" class="btn btn-outline-secondary" id="open-cabinet-btn">Личный кабинет</button>
+</div>
+
+<script>
+    let reward = 100;
+    let penalty = 0;
+    const rewardDisplay = document.getElementById('reward-display');
+    const penaltyInput = document.getElementById('round_time_penalty');
+
+    // минус 1 ЭВЕ каждую секунду 
+    setInterval(function() {
+        penalty++;
+        let currentReward = reward - penalty;
+        rewardDisplay.textContent = currentReward;
+        penaltyInput.value = penalty;
+    }, 1000);
+
+    // Заглушка кнопки личного кабинета (окно реализуем на 4-5 этапе)
+    document.getElementById('open-cabinet-btn').addEventListener('click', function() {
+        document.getElementById('cabinet_opened').value = "True";
+        alert('Здесь будет открываться модальное окно Личного кабинета поверх матрицы.');
+    });
+</script>
+{{ endblock }}

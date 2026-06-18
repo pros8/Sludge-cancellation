@@ -1,5 +1,6 @@
 from otree.api import *
 import itertools
+import random
 
 doc = """
 Влияние деструктивной архитектуры выбора (сладжа) на отмену цифровых подписок.
@@ -73,3 +74,61 @@ class Player(BasePlayer):
         label='Как Вы думаете, что проверялось в ходе этого исследования?',
         blank=True
     )
+
+
+    # PAGES
+class Task(Page):
+    form_model = 'player'
+    form_fields = [
+        'player_answer', 
+        'round_time_penalty', 
+        'cabinet_time_round', 
+        'clicks_count', 
+        'validation_errors', 
+        'cabinet_opened'
+    ]
+
+    @staticmethod
+    def vars_for_template(player: Player):
+        # Генерируем уникальную матрицу 10х10 
+        matrix = []
+        zeros_count = 0
+        for _ in range(10):
+            row = []
+            for _ in range(10):
+                val = random.choice([0, 1])
+                if val == 0:
+                    zeros_count += 1
+                row.append(val)
+            matrix.append(row)
+        
+        # Сохраняем правильный ответ в базу
+        player.matrix_correct_answer = zeros_count
+        
+        # Перед началом 3-го раунда участники получают системное уведомление
+        show_warning = (player.round_number == 3)
+        
+        return {
+            'matrix': matrix,
+            'show_warning': show_warning,
+        }
+
+    @staticmethod
+    def before_next_page(player: Player, timeout_happened):
+        # Проверка правильности подсчета нулей
+        player.is_correct = (player.player_answer == player.matrix_correct_answer)
+        base_reward = Constants.base_matrix_reward if player.is_correct else cu(0)
+        
+        # Списание за подписку (с 3 раунда)
+        sub_cost = cu(0)
+        if player.round_number >= 3 and player.subscription_active:
+            sub_cost = Constants.subscription_cost
+        
+        # Расчет итогового заработка за раунд в ЭВЕ с учетом штрафа за время
+        # round_time_penalty передается со страницы HTML через скрытое поле
+        final_payoff = base_reward - cu(player.round_time_penalty) - sub_cost
+        
+        player.round_payoff_eve = int(final_payoff)
+        player.payoff = final_payoff
+
+page_sequence = [Task]
