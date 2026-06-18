@@ -1,11 +1,13 @@
 from os import environ
 
 SESSION_CONFIGS = [
-    # dict(
-    #     name='public_goods',
-    #     app_sequence=['public_goods'],
-    #     num_demo_participants=3,
-    # ),
+    dict(
+        name='sludge_cancellation',
+        display_name="Влияние сладжа на отмену подписки",
+        app_sequence=['sludge_cancellation'],
+        num_demo_participants=2,
+        real_world_currency_per_point=0.1,
+    ),
 ]
 
 # if you set a property in SESSION_CONFIG_DEFAULTS, it will be inherited by all configs
@@ -22,11 +24,12 @@ SESSION_FIELDS = []
 
 # ISO-639 code
 # for example: de, fr, ja, ko, zh-hans
-LANGUAGE_CODE = 'en'
+LANGUAGE_CODE = 'ru'
 
 # e.g. EUR, GBP, CNY, JPY
-REAL_WORLD_CURRENCY_CODE = 'USD'
+REAL_WORLD_CURRENCY_CODE = 'RUB'
 USE_POINTS = True
+POINTS_CUSTOM_NAME = 'ЭВЕ'
 
 ADMIN_USERNAME = 'admin'
 # for security, best to set admin password in an environment variable
